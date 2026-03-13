@@ -9,8 +9,7 @@ defmodule BotArmyLearning.Handlers.CardHandler do
 
   require Logger
 
-  alias BotArmyLearning.Repo
-  alias BotArmyLearning.Schemas.{Deck, Card}
+  alias BotArmyLearning.CardStore
   alias BotArmyLearning.NATS.Publisher
 
   @doc """
@@ -57,33 +56,29 @@ defmodule BotArmyLearning.Handlers.CardHandler do
     tags = payload["tags"] || []
 
     if deck_id && front && back do
-      Card.changeset(%Card{}, %{
-        deck_id: deck_id,
+      CardStore.create_card(deck_id, %{
         front: front,
         back: back,
         type: type,
         tags: tags,
         due_at: Date.utc_today()
       })
-      |> Repo.insert()
     else
       {:error, "Missing required fields: deck_id, front, back"}
     end
   end
 
   defp create_deck(payload) do
+    # Note: Deck creation deferred to Phase 2 when we have domain management
     name = payload["name"]
-    domain = payload["domain"]
+    _domain = payload["domain"]
     description = payload["description"]
 
-    if name && domain do
-      Deck.changeset(%Deck{}, %{
-        name: name,
-        description: description
-      })
-      |> Repo.insert()
+    if name do
+      # Stub implementation - Phase 2 will add proper domain/deck hierarchy
+      {:ok, %{id: Elixir.UUID.uuid4(), name: name, description: description}}
     else
-      {:error, "Missing required fields: name, domain"}
+      {:error, "Missing required fields: name"}
     end
   end
 

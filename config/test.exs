@@ -1,7 +1,7 @@
 import Config
 
-# Test configuration uses isolated test database
-# Does NOT use runtime.exs environment variable overrides (compile-time only)
+# Test configuration uses isolated test database with SQL Sandbox
+# This allows parallel test execution with transaction isolation
 config :bot_army_learning, BotArmyLearning.Repo,
   database: System.get_env("BOT_ARMY_LEARNING_TEST_DB_NAME", "ergon_learning_test"),
   hostname: System.get_env("BOT_ARMY_LEARNING_DB_HOST", "localhost"),
@@ -11,5 +11,5 @@ config :bot_army_learning, BotArmyLearning.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 1
 
-# Use mock card store in tests (no real data access)
-config :bot_army_learning, card_store: BotArmyLearning.CardStoreMock
+# In test mode, CardStore and SessionManager are not started (see application.ex @env guard)
+# Phase 2: handler integration tests will use mocked stores via dependency injection
