@@ -1,0 +1,156 @@
+defmodule BotArmyLearning.NATS.Consumer do
+  @moduledoc """
+  NATS message consumer for the Learning bot.
+
+  Subscribes to NATS subjects matching Learning message patterns:
+  - `learning.session.*` - Session control events
+  - `learning.card.*` - Card creation/management events
+  - `learning.deck.*` - Deck creation events
+
+  Messages are decoded using BotArmyCore.NATS.Decoder and routed to
+  appropriate handlers based on the event type.
+  """
+
+  use GenServer
+  require Logger
+
+  @reconnect_delay_ms 5000
+
+  # API
+
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  end
+
+  # Callbacks
+
+  @impl true
+  def init(opts) do
+    Logger.info("Starting Learning NATS consumer")
+
+    state = %{
+      subscriptions: [],
+      reconnect_attempt: 0,
+      opts: opts
+    }
+
+    {:ok, state, {:continue, :connect}}
+  end
+
+  @impl true
+  def handle_continue(:connect, state) do
+    case GenServer.call(BotArmyRuntime.NATS.Connection, :get_connection, 5000) do
+      {:ok, conn} -> subscribe_to_topics(conn, state)
+      {:error, _reason} -> handle_connection_unavailable(state)
+    end
+  end
+
+  defp subscribe_to_topics(conn, state) do
+    Logger.info("Connected to NATS, subscribing to Learning topics")
+
+    subjects = [
+      "learning.session.start",
+      "learning.session.answer",
+      "learning.session.end",
+      "learning.card.create",
+      "learning.deck.create"
+    ]
+
+    subs =
+      Enum.reduce_while(subjects, [], fn subject, acc ->
+        case Gnat.sub(conn, self(), subject) do
+          {:ok, sub} ->
+            Logger.info("Learning consumer subscribed to #{subject}")
+            {:cont, [sub | acc]}
+
+          {:error, reason} ->
+            Logger.error("Failed to subscribe to #{subject}: #{inspect(reason)}")
+            {:halt, acc}
+        end
+      end)
+
+    case subs do
+      subs when length(subs) == length(subjects) ->
+        {:noreply, %{state | subscriptions: subs}}
+
+      _ ->
+        Logger.error("Failed to subscribe to all Learning topics")
+        Process.send_after(self(), :reconnect, @reconnect_delay_ms)
+        {:noreply, state}
+    end
+  end
+
+  defp handle_connection_unavailable(state) do
+    Logger.warning("NATS connection not ready, will retry")
+    Process.send_after(self(), :connect_retry, @reconnect_delay_ms)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:connect_retry, state) do
+    {:noreply, state, {:continue, :connect}}
+  end
+
+  @impl true
+  def handle_info({:msg, msg}, state) do
+    Logger.debug("Received NATS message on subject: #{msg.topic}")
+
+    case BotArmyCore.NATS.Decoder.decode(msg.body) do
+      {:ok, decoded_message} ->
+        route_message(decoded_message)
+
+      {:error, reason} ->
+        Logger.warning("Failed to decode message from #{msg.topic}: #{inspect(reason)}")
+    end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:reconnect, state) do
+    Logger.info("Attempting to reconnect to NATS")
+    {:noreply, state, {:continue, :connect}}
+  end
+
+  @impl true
+  def handle_info({:nats, :disconnected}, state) do
+    Logger.warning("Disconnected from NATS, will reconnect")
+    Process.send_after(self(), :reconnect, @reconnect_delay_ms)
+    {:noreply, %{state | connection: nil}}
+  end
+
+  @impl true
+  def handle_info({:nats, :connected}, state) do
+    Logger.info("Reconnected to NATS")
+    {:noreply, state}
+  end
+
+  # Private functions
+
+  @doc """
+  Route decoded message to appropriate handler based on event type.
+  """
+  def route_message(message) do
+    event = message["event"]
+
+    case event do
+      "learning.session.start" ->
+        BotArmyLearning.Handlers.SessionHandler.handle_start(message)
+
+      "learning.session.answer" ->
+        BotArmyLearning.Handlers.SessionHandler.handle_answer(message)
+
+      "learning.session.end" ->
+        BotArmyLearning.Handlers.SessionHandler.handle_end(message)
+
+      "learning.card.create" ->
+        BotArmyLearning.Handlers.CardHandler.handle_create(message)
+
+      "learning.deck.create" ->
+        BotArmyLearning.Handlers.CardHandler.handle_deck_create(message)
+
+      _ ->
+        Logger.debug("Unknown Learning event type: #{event}")
+    end
+  end
+end
