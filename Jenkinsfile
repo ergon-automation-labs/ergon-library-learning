@@ -16,7 +16,7 @@ pipeline {
     BOT_NAME = 'learning_bot'
     STATE_NAME = 'learning_bot'
     RELEASE_DIR = "/opt/ergon/releases/${BOT_NAME}"
-    GITHUB_REPO = "ergon-automation-labs/ergon-learning"
+    GITHUB_REPO = "ergon-automation-labs/ergon_learning"
     SALT_TARGET = '-G bot_army_node_type:air'
   }
 
