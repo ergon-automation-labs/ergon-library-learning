@@ -16,16 +16,17 @@ defmodule BotArmyLearning.Handlers.CardHandler do
   Handle card creation event.
   """
   def handle_create(message) when is_map(message) do
+    %{tenant_id: tenant_id, user_id: user_id} = BotArmyCore.Tenant.extract_context(message)
     Logger.debug("CardHandler: Processing card create event")
 
     payload = message["payload"] || %{}
 
-    case create_card(payload) do
+    case create_card(tenant_id, payload) do
       {:ok, card} ->
-        publish_success(message, card)
+        publish_success(message, card, tenant_id, user_id)
 
       {:error, reason} ->
-        publish_error(message, reason)
+        publish_error(message, reason, tenant_id, user_id)
     end
   end
 
@@ -33,22 +34,23 @@ defmodule BotArmyLearning.Handlers.CardHandler do
   Handle deck creation event.
   """
   def handle_deck_create(message) when is_map(message) do
+    %{tenant_id: tenant_id, user_id: user_id} = BotArmyCore.Tenant.extract_context(message)
     Logger.debug("CardHandler: Processing deck create event")
 
     payload = message["payload"] || %{}
 
-    case create_deck(payload) do
+    case create_deck(tenant_id, payload) do
       {:ok, deck} ->
-        publish_deck_success(message, deck)
+        publish_deck_success(message, deck, tenant_id, user_id)
 
       {:error, reason} ->
-        publish_error(message, reason)
+        publish_error(message, reason, tenant_id, user_id)
     end
   end
 
   # Private functions
 
-  defp create_card(payload) do
+  defp create_card(tenant_id, payload) do
     deck_id = payload["deck_id"]
     front = payload["front"]
     back = payload["back"]
@@ -56,7 +58,7 @@ defmodule BotArmyLearning.Handlers.CardHandler do
     tags = payload["tags"] || []
 
     if deck_id && front && back do
-      CardStore.create_card(deck_id, %{
+      CardStore.create_card(tenant_id, deck_id, %{
         front: front,
         back: back,
         type: type,
@@ -68,7 +70,7 @@ defmodule BotArmyLearning.Handlers.CardHandler do
     end
   end
 
-  defp create_deck(payload) do
+  defp create_deck(tenant_id, payload) do
     # Note: Deck creation deferred to Phase 2 when we have domain management
     name = payload["name"]
     _domain = payload["domain"]
@@ -76,13 +78,13 @@ defmodule BotArmyLearning.Handlers.CardHandler do
 
     if name do
       # Stub implementation - Phase 2 will add proper domain/deck hierarchy
-      {:ok, %{id: Elixir.UUID.uuid4(), name: name, description: description}}
+      {:ok, %{id: Elixir.UUID.uuid4(), name: name, description: description, tenant_id: tenant_id}}
     else
       {:error, "Missing required fields: name"}
     end
   end
 
-  defp publish_success(message, card) do
+  defp publish_success(message, card, tenant_id, user_id) do
     event = %{
       "event" => "learning.card.created",
       "event_id" => Elixir.UUID.uuid4(),
@@ -91,6 +93,8 @@ defmodule BotArmyLearning.Handlers.CardHandler do
       "source_node" => node(),
       "triggered_by" => message["event_id"],
       "schema_version" => "1.0.0",
+      "tenant_id" => tenant_id,
+      "user_id" => user_id,
       "payload" => %{
         "card_id" => card.id,
         "deck_id" => card.deck_id
@@ -100,7 +104,7 @@ defmodule BotArmyLearning.Handlers.CardHandler do
     Publisher.publish(event)
   end
 
-  defp publish_deck_success(message, deck) do
+  defp publish_deck_success(message, deck, tenant_id, user_id) do
     event = %{
       "event" => "learning.deck.created",
       "event_id" => Elixir.UUID.uuid4(),
@@ -109,6 +113,8 @@ defmodule BotArmyLearning.Handlers.CardHandler do
       "source_node" => node(),
       "triggered_by" => message["event_id"],
       "schema_version" => "1.0.0",
+      "tenant_id" => tenant_id,
+      "user_id" => user_id,
       "payload" => %{
         "deck_id" => deck.id,
         "name" => deck.name
@@ -118,7 +124,7 @@ defmodule BotArmyLearning.Handlers.CardHandler do
     Publisher.publish(event)
   end
 
-  defp publish_error(message, reason) do
+  defp publish_error(message, reason, tenant_id, user_id) do
     event = %{
       "event" => "learning.error",
       "event_id" => Elixir.UUID.uuid4(),
@@ -127,6 +133,8 @@ defmodule BotArmyLearning.Handlers.CardHandler do
       "source_node" => node(),
       "triggered_by" => message["event_id"],
       "schema_version" => "1.0.0",
+      "tenant_id" => tenant_id,
+      "user_id" => user_id,
       "payload" => %{
         "error" => inspect(reason)
       }

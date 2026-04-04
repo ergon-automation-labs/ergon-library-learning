@@ -17,6 +17,7 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
   Handle session start event.
   """
   def handle_start(message) when is_map(message) do
+    %{tenant_id: tenant_id, user_id: user_id} = BotArmyCore.Tenant.extract_context(message)
     Logger.debug("SessionHandler: Processing session start event")
 
     payload = message["payload"] || %{}
@@ -26,10 +27,10 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
 
     case SessionManager.start_session(deck_id, surface, card_limit) do
       {:ok, session} ->
-        publish_session_started(message, session)
+        publish_session_started(message, session, tenant_id, user_id)
 
       {:error, reason} ->
-        publish_error(message, reason)
+        publish_error(message, reason, tenant_id, user_id)
     end
   end
 
@@ -37,6 +38,7 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
   Handle session answer event.
   """
   def handle_answer(message) when is_map(message) do
+    %{tenant_id: tenant_id, user_id: user_id} = BotArmyCore.Tenant.extract_context(message)
     Logger.debug("SessionHandler: Processing session answer event")
 
     payload = message["payload"] || %{}
@@ -47,13 +49,13 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
     if session_id && card_id && grade do
       case SessionManager.record_answer(session_id, card_id, grade) do
         :ok ->
-          publish_answer_recorded(message, session_id, card_id, grade)
+          publish_answer_recorded(message, session_id, card_id, grade, tenant_id, user_id)
 
         {:error, reason} ->
-          publish_error(message, reason)
+          publish_error(message, reason, tenant_id, user_id)
       end
     else
-      publish_error(message, "Missing required fields")
+      publish_error(message, "Missing required fields", tenant_id, user_id)
     end
   end
 
@@ -61,6 +63,7 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
   Handle session end event.
   """
   def handle_end(message) when is_map(message) do
+    %{tenant_id: tenant_id, user_id: user_id} = BotArmyCore.Tenant.extract_context(message)
     Logger.debug("SessionHandler: Processing session end event")
 
     payload = message["payload"] || %{}
@@ -68,16 +71,16 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
 
     case SessionManager.end_session(session_id) do
       :ok ->
-        publish_session_complete(message, session_id)
+        publish_session_complete(message, session_id, tenant_id, user_id)
 
       {:error, reason} ->
-        publish_error(message, reason)
+        publish_error(message, reason, tenant_id, user_id)
     end
   end
 
   # Private functions
 
-  defp publish_session_started(message, session) do
+  defp publish_session_started(message, session, tenant_id, user_id) do
     event = %{
       "event" => "learning.session.started",
       "event_id" => Elixir.UUID.uuid4(),
@@ -86,6 +89,8 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
       "source_node" => node(),
       "triggered_by" => message["event_id"],
       "schema_version" => "1.0.0",
+      "tenant_id" => tenant_id,
+      "user_id" => user_id,
       "payload" => %{
         "session_id" => session.id,
         "deck_id" => session.deck_id,
@@ -96,7 +101,7 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
     Publisher.publish(event)
   end
 
-  defp publish_answer_recorded(message, session_id, card_id, grade) do
+  defp publish_answer_recorded(message, session_id, card_id, grade, tenant_id, user_id) do
     event = %{
       "event" => "learning.session.result",
       "event_id" => Elixir.UUID.uuid4(),
@@ -105,6 +110,8 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
       "source_node" => node(),
       "triggered_by" => message["event_id"],
       "schema_version" => "1.0.0",
+      "tenant_id" => tenant_id,
+      "user_id" => user_id,
       "payload" => %{
         "session_id" => session_id,
         "card_id" => card_id,
@@ -115,7 +122,7 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
     Publisher.publish(event)
   end
 
-  defp publish_session_complete(message, session_id) do
+  defp publish_session_complete(message, session_id, tenant_id, user_id) do
     event = %{
       "event" => "learning.session.complete",
       "event_id" => Elixir.UUID.uuid4(),
@@ -124,6 +131,8 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
       "source_node" => node(),
       "triggered_by" => message["event_id"],
       "schema_version" => "1.0.0",
+      "tenant_id" => tenant_id,
+      "user_id" => user_id,
       "payload" => %{
         "session_id" => session_id
       }
@@ -132,7 +141,7 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
     Publisher.publish(event)
   end
 
-  defp publish_error(message, reason) do
+  defp publish_error(message, reason, tenant_id, user_id) do
     event = %{
       "event" => "learning.error",
       "event_id" => Elixir.UUID.uuid4(),
@@ -141,6 +150,8 @@ defmodule BotArmyLearning.Handlers.SessionHandler do
       "source_node" => node(),
       "triggered_by" => message["event_id"],
       "schema_version" => "1.0.0",
+      "tenant_id" => tenant_id,
+      "user_id" => user_id,
       "payload" => %{
         "error" => inspect(reason)
       }

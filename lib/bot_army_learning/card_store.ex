@@ -23,63 +23,63 @@ defmodule BotArmyLearning.CardStore do
   end
 
   @doc """
-  List all cards in a deck.
+  List all cards in a deck for a tenant.
   """
-  def list_cards_for_deck(deck_id) do
-    GenServer.call(__MODULE__, {:list_cards_for_deck, deck_id})
+  def list_cards_for_deck(tenant_id, deck_id) when is_binary(tenant_id) and is_binary(deck_id) do
+    GenServer.call(__MODULE__, {:list_cards_for_deck, tenant_id, deck_id})
   end
 
   @doc """
-  List cards due for review in a deck (limited to card_limit).
+  List cards due for review in a deck (limited to card_limit) for a tenant.
   """
-  def list_due_cards(deck_id, limit \\ 20) do
-    GenServer.call(__MODULE__, {:list_due_cards, deck_id, limit})
+  def list_due_cards(tenant_id, deck_id, limit \\ 20) when is_binary(tenant_id) and is_binary(deck_id) do
+    GenServer.call(__MODULE__, {:list_due_cards, tenant_id, deck_id, limit})
   end
 
   @doc """
-  Get a single card by ID.
+  Get a single card by ID for a tenant.
   """
-  def get_card(card_id) do
-    GenServer.call(__MODULE__, {:get_card, card_id})
+  def get_card(tenant_id, card_id) when is_binary(tenant_id) and is_binary(card_id) do
+    GenServer.call(__MODULE__, {:get_card, tenant_id, card_id})
   end
 
   @doc """
-  Create a new card.
+  Create a new card for a tenant.
   """
-  def create_card(deck_id, attrs) do
-    GenServer.call(__MODULE__, {:create_card, deck_id, attrs})
+  def create_card(tenant_id, deck_id, attrs) when is_binary(tenant_id) and is_binary(deck_id) do
+    GenServer.call(__MODULE__, {:create_card, tenant_id, deck_id, attrs})
   end
 
   @doc """
-  Update an existing card.
+  Update an existing card for a tenant.
   """
-  def update_card(card_id, attrs) do
-    GenServer.call(__MODULE__, {:update_card, card_id, attrs})
+  def update_card(tenant_id, card_id, attrs) when is_binary(tenant_id) and is_binary(card_id) do
+    GenServer.call(__MODULE__, {:update_card, tenant_id, card_id, attrs})
   end
 
   @doc """
-  Delete a card.
+  Delete a card for a tenant.
   """
-  def delete_card(card_id) do
-    GenServer.call(__MODULE__, {:delete_card, card_id})
+  def delete_card(tenant_id, card_id) when is_binary(tenant_id) and is_binary(card_id) do
+    GenServer.call(__MODULE__, {:delete_card, tenant_id, card_id})
   end
 
   # GenServer callbacks
 
   @impl true
-  def handle_call({:list_cards_for_deck, deck_id}, _from, state) do
-    cards = Repo.all(from(c in Card, where: c.deck_id == ^deck_id))
+  def handle_call({:list_cards_for_deck, tenant_id, deck_id}, _from, state) do
+    cards = Repo.all(from(c in Card, where: c.tenant_id == ^tenant_id and c.deck_id == ^deck_id))
     {:reply, cards, state}
   end
 
   @impl true
-  def handle_call({:list_due_cards, deck_id, limit}, _from, state) do
+  def handle_call({:list_due_cards, tenant_id, deck_id, limit}, _from, state) do
     today = Date.utc_today()
 
     cards =
       Repo.all(
         from(c in Card,
-          where: c.deck_id == ^deck_id and c.due_at <= ^today,
+          where: c.tenant_id == ^tenant_id and c.deck_id == ^deck_id and c.due_at <= ^today,
           limit: ^limit
         )
       )
@@ -88,23 +88,23 @@ defmodule BotArmyLearning.CardStore do
   end
 
   @impl true
-  def handle_call({:get_card, card_id}, _from, state) do
-    card = Repo.get(Card, card_id)
+  def handle_call({:get_card, tenant_id, card_id}, _from, state) do
+    card = Repo.get_by(Card, id: card_id, tenant_id: tenant_id)
     {:reply, card, state}
   end
 
   @impl true
-  def handle_call({:create_card, deck_id, attrs}, _from, state) do
+  def handle_call({:create_card, tenant_id, deck_id, attrs}, _from, state) do
     result =
-      Card.changeset(%Card{}, Map.merge(attrs, %{"deck_id" => deck_id}))
+      Card.changeset(%Card{}, Map.merge(attrs, %{"tenant_id" => tenant_id, "deck_id" => deck_id}))
       |> Repo.insert()
 
     {:reply, result, state}
   end
 
   @impl true
-  def handle_call({:update_card, card_id, attrs}, _from, state) do
-    card = Repo.get(Card, card_id)
+  def handle_call({:update_card, tenant_id, card_id, attrs}, _from, state) do
+    card = Repo.get_by(Card, id: card_id, tenant_id: tenant_id)
 
     if card do
       result = Card.changeset(card, attrs) |> Repo.update()
@@ -115,8 +115,8 @@ defmodule BotArmyLearning.CardStore do
   end
 
   @impl true
-  def handle_call({:delete_card, card_id}, _from, state) do
-    card = Repo.get(Card, card_id)
+  def handle_call({:delete_card, tenant_id, card_id}, _from, state) do
+    card = Repo.get_by(Card, id: card_id, tenant_id: tenant_id)
 
     if card do
       case Repo.delete(card) do

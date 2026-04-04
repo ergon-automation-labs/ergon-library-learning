@@ -5,10 +5,10 @@ defmodule BotArmyLearning.CardStoreBehaviour do
   Allows for flexible implementation: Ecto persistence, in-memory mocking, etc.
   """
 
-  @callback list_cards_for_deck(deck_id :: String.t()) :: [map()]
-  @callback list_due_cards(deck_id :: String.t(), limit :: integer()) :: [map()]
-  @callback get_card(card_id :: String.t()) :: map() | nil
-  @callback create_card(deck_id :: String.t(), attrs :: map()) :: {:ok, map()} | {:error, String.t()}
-  @callback update_card(card_id :: String.t(), attrs :: map()) :: {:ok, map()} | {:error, String.t()}
-  @callback delete_card(card_id :: String.t()) :: :ok | {:error, String.t()}
+  @callback list_cards_for_deck(tenant_id :: String.t(), deck_id :: String.t()) :: [map()]
+  @callback list_due_cards(tenant_id :: String.t(), deck_id :: String.t(), limit :: integer()) :: [map()]
+  @callback get_card(tenant_id :: String.t(), card_id :: String.t()) :: map() | nil
+  @callback create_card(tenant_id :: String.t(), deck_id :: String.t(), attrs :: map()) :: {:ok, map()} | {:error, String.t()}
+  @callback update_card(tenant_id :: String.t(), card_id :: String.t(), attrs :: map()) :: {:ok, map()} | {:error, String.t()}
+  @callback delete_card(tenant_id :: String.t(), card_id :: String.t()) :: :ok | {:error, String.t()}
 end
