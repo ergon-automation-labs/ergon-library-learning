@@ -25,6 +25,6 @@ defmodule BotArmyLearning.Schemas.Snooze do
   def changeset(snooze, attrs) do
     snooze
     |> cast(attrs, [:snoozed_until, :reason, :card_id, :tenant_id, :user_id])
-    |> validate_required([:snoozed_until, :card_id])
+    |> validate_required([:snoozed_until, :card_id, :tenant_id])
   end
 end

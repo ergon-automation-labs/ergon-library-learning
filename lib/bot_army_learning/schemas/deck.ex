@@ -28,6 +28,6 @@ defmodule BotArmyLearning.Schemas.Deck do
   def changeset(deck, attrs) do
     deck
     |> cast(attrs, [:name, :description, :domain_id, :card_count, :tenant_id, :user_id])
-    |> validate_required([:name, :domain_id])
+    |> validate_required([:name, :domain_id, :tenant_id])
   end
 end

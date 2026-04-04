@@ -28,6 +28,6 @@ defmodule BotArmyLearning.Schemas.Session do
   def changeset(session, attrs) do
     session
     |> cast(attrs, [:surface, :card_limit, :cards_reviewed, :status, :deck_id, :tenant_id, :user_id])
-    |> validate_required([:deck_id, :surface])
+    |> validate_required([:deck_id, :surface, :tenant_id])
   end
 end

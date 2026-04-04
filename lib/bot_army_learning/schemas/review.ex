@@ -26,7 +26,7 @@ defmodule BotArmyLearning.Schemas.Review do
   def changeset(review, attrs) do
     review
     |> cast(attrs, [:grade, :review_duration_ms, :card_id, :session_id, :tenant_id, :user_id])
-    |> validate_required([:grade, :card_id, :session_id])
+    |> validate_required([:grade, :card_id, :session_id, :tenant_id])
     |> validate_inclusion(:grade, [0, 1, 2, 3])
   end
 end

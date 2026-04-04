@@ -34,6 +34,6 @@ defmodule BotArmyLearning.Schemas.Card do
   def changeset(card, attrs) do
     card
     |> cast(attrs, [:front, :back, :type, :tags, :stability, :difficulty, :due_at, :deck_id, :tenant_id, :user_id])
-    |> validate_required([:front, :back, :deck_id])
+    |> validate_required([:front, :back, :deck_id, :tenant_id])
   end
 end
