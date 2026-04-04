@@ -17,12 +17,14 @@ defmodule BotArmyLearning.Schemas.Snooze do
 
     belongs_to :card, BotArmyLearning.Schemas.Card
 
+    field :tenant_id, :binary_id
+    field :user_id, :binary_id
     timestamps()
   end
 
   def changeset(snooze, attrs) do
     snooze
-    |> cast(attrs, [:snoozed_until, :reason, :card_id])
+    |> cast(attrs, [:snoozed_until, :reason, :card_id, :tenant_id, :user_id])
     |> validate_required([:snoozed_until, :card_id])
   end
 end

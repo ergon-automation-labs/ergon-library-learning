@@ -17,12 +17,14 @@ defmodule BotArmyLearning.Schemas.Domain do
 
     has_many :decks, BotArmyLearning.Schemas.Deck
 
+    field :tenant_id, :binary_id
+    field :user_id, :binary_id
     timestamps()
   end
 
   def changeset(domain, attrs) do
     domain
-    |> cast(attrs, [:name, :description])
+    |> cast(attrs, [:name, :description, :tenant_id, :user_id])
     |> validate_required([:name])
   end
 end

@@ -20,12 +20,14 @@ defmodule BotArmyLearning.Schemas.Deck do
     has_many :cards, BotArmyLearning.Schemas.Card
     has_many :sessions, BotArmyLearning.Schemas.Session
 
+    field :tenant_id, :binary_id
+    field :user_id, :binary_id
     timestamps()
   end
 
   def changeset(deck, attrs) do
     deck
-    |> cast(attrs, [:name, :description, :domain_id, :card_count])
+    |> cast(attrs, [:name, :description, :domain_id, :card_count, :tenant_id, :user_id])
     |> validate_required([:name, :domain_id])
   end
 end

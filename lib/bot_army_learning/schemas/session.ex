@@ -20,12 +20,14 @@ defmodule BotArmyLearning.Schemas.Session do
     belongs_to :deck, BotArmyLearning.Schemas.Deck
     has_many :reviews, BotArmyLearning.Schemas.Review
 
+    field :tenant_id, :binary_id
+    field :user_id, :binary_id
     timestamps()
   end
 
   def changeset(session, attrs) do
     session
-    |> cast(attrs, [:surface, :card_limit, :cards_reviewed, :status, :deck_id])
+    |> cast(attrs, [:surface, :card_limit, :cards_reviewed, :status, :deck_id, :tenant_id, :user_id])
     |> validate_required([:deck_id, :surface])
   end
 end
