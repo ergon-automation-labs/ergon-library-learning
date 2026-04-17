@@ -40,8 +40,12 @@ defmodule BotArmyLearning.NATS.Consumer do
   @impl true
   def handle_continue(:connect, state) do
     case GenServer.call(BotArmyRuntime.NATS.Connection, :get_connection, 5000) do
-      {:ok, conn} -> subscribe_to_topics(conn, state)
-      {:error, _reason} -> handle_connection_unavailable(state)
+      {:ok, conn} ->
+        BotArmyRuntime.NATS.Connection.subscribe_to_status()
+        subscribe_to_topics(conn, state)
+
+      {:error, _reason} ->
+        handle_connection_unavailable(state)
     end
   end
 
@@ -93,15 +97,17 @@ defmodule BotArmyLearning.NATS.Consumer do
 
   @impl true
   def handle_info({:msg, msg}, state) do
-    Logger.debug("Received NATS message on subject: #{msg.topic}")
+    BotArmyRuntime.Tracing.with_consumer_span(msg.topic, msg.headers, fn ->
+      Logger.debug("Received NATS message on subject: #{msg.topic}")
 
-    case BotArmyCore.NATS.Decoder.decode(msg.body) do
-      {:ok, decoded_message} ->
-        route_message(decoded_message)
+      case BotArmyCore.NATS.Decoder.decode(msg.body) do
+        {:ok, decoded_message} ->
+          route_message(decoded_message)
 
-      {:error, reason} ->
-        Logger.warning("Failed to decode message from #{msg.topic}: #{inspect(reason)}")
-    end
+        {:error, reason} ->
+          Logger.warning("Failed to decode message from #{msg.topic}: #{inspect(reason)}")
+      end
+    end)
 
     {:noreply, state}
   end
@@ -116,13 +122,13 @@ defmodule BotArmyLearning.NATS.Consumer do
   def handle_info({:nats, :disconnected}, state) do
     Logger.warning("Disconnected from NATS, will reconnect")
     Process.send_after(self(), :reconnect, @reconnect_delay_ms)
-    {:noreply, %{state | connection: nil}}
+    {:noreply, %{state | subscriptions: []}}
   end
 
   @impl true
   def handle_info({:nats, :connected}, state) do
-    Logger.info("Reconnected to NATS")
-    {:noreply, state}
+    Logger.info("Reconnected to NATS, re-subscribing")
+    {:noreply, state, {:continue, :connect}}
   end
 
   # Private functions
