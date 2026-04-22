@@ -1,5 +1,6 @@
 defmodule BotArmyLearning.FSRSTest do
   use ExUnit.Case
+  @moduletag :scheduler
   doctest BotArmyLearning.FSRS
 
   alias BotArmyLearning.FSRS

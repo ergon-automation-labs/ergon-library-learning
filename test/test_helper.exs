@@ -1,3 +1,4 @@
+ExUnit.configure(exclude: [:integration, :load, :nats_live])
 ExUnit.start()
 
 # Start the application for tests
