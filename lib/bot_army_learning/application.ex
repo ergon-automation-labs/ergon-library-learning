@@ -14,11 +14,13 @@ defmodule BotArmyLearning.Application do
 
   @impl true
   def start(_type, _args) do
-    children = []
-    |> maybe_add_repo()
-    |> maybe_add_card_store()
-    |> maybe_add_session_manager()
-    |> maybe_add_consumer()
+    children =
+      []
+      |> maybe_add_repo()
+      |> maybe_add_card_store()
+      |> maybe_add_session_manager()
+      |> maybe_add_pulse_publisher()
+      |> maybe_add_consumer()
 
     opts = [strategy: :one_for_one, name: BotArmyLearning.Supervisor]
     Supervisor.start_link(children, opts)
@@ -34,6 +36,10 @@ defmodule BotArmyLearning.Application do
 
   defp maybe_add_session_manager(children) do
     if @env == :test, do: children, else: [{BotArmyLearning.SessionManager, []} | children]
+  end
+
+  defp maybe_add_pulse_publisher(children) do
+    if @env == :test, do: children, else: [{BotArmyLearning.PulsePublisher, []} | children]
   end
 
   defp maybe_add_consumer(children) do
