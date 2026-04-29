@@ -15,6 +15,20 @@ defmodule BotArmyLearning.NATS.Consumer do
   require Logger
 
   @reconnect_delay_ms 5000
+  @version Mix.Project.config()[:version]
+  @registry_heartbeat_ms 20_000
+
+  @subjects [
+    %{subject: "learning.session.start", type: :subscribe, description: "Start learning session"},
+    %{
+      subject: "learning.session.answer",
+      type: :subscribe,
+      description: "Answer learning question"
+    },
+    %{subject: "learning.session.end", type: :subscribe, description: "End learning session"},
+    %{subject: "learning.card.create", type: :subscribe, description: "Create learning card"},
+    %{subject: "learning.deck.create", type: :subscribe, description: "Create learning deck"}
+  ]
 
   # API
 
@@ -75,6 +89,8 @@ defmodule BotArmyLearning.NATS.Consumer do
 
     case subs do
       subs when length(subs) == length(subjects) ->
+        BotArmyRuntime.Registry.register("learning", @subjects, @version)
+        Process.send_after(self(), :registry_heartbeat, @registry_heartbeat_ms)
         {:noreply, %{state | subscriptions: subs}}
 
       _ ->
@@ -129,6 +145,16 @@ defmodule BotArmyLearning.NATS.Consumer do
   def handle_info({:nats, :connected}, state) do
     Logger.info("Reconnected to NATS, re-subscribing")
     {:noreply, state, {:continue, :connect}}
+  end
+
+  @impl true
+  def handle_info(:registry_heartbeat, state) do
+    if length(state.subscriptions) > 0 do
+      BotArmyRuntime.Registry.register("learning", @subjects, @version)
+      Process.send_after(self(), :registry_heartbeat, @registry_heartbeat_ms)
+    end
+
+    {:noreply, state}
   end
 
   # Private functions
