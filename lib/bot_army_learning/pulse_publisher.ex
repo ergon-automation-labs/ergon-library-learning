@@ -81,10 +81,9 @@ defmodule BotArmyLearning.PulsePublisher do
       }
 
       subject = "bot.learning.pulse"
-      message = Jason.encode!(payload)
 
-      case BotArmyRuntime.NATS.Connection.publish(subject, message) do
-        :ok ->
+      case BotArmyRuntime.NATS.Publisher.publish(subject, payload) do
+        {:ok, _} ->
           Logger.info("[PulsePublisher] Published learning pulse to #{subject}")
 
         {:error, reason} ->
