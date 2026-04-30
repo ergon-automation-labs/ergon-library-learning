@@ -27,7 +27,12 @@ defmodule BotArmyLearning.NATS.Consumer do
     },
     %{subject: "learning.session.end", type: :subscribe, description: "End learning session"},
     %{subject: "learning.card.create", type: :subscribe, description: "Create learning card"},
-    %{subject: "learning.deck.create", type: :subscribe, description: "Create learning deck"}
+    %{subject: "learning.deck.create", type: :subscribe, description: "Create learning deck"},
+    %{
+      subject: "gossip.poll.broadcast",
+      type: :subscribe,
+      description: "Army general poll broadcasts"
+    }
   ]
 
   # API
@@ -71,7 +76,8 @@ defmodule BotArmyLearning.NATS.Consumer do
       "learning.session.answer",
       "learning.session.end",
       "learning.card.create",
-      "learning.deck.create"
+      "learning.deck.create",
+      "gossip.poll.broadcast"
     ]
 
     subs =
@@ -116,12 +122,19 @@ defmodule BotArmyLearning.NATS.Consumer do
     BotArmyRuntime.Tracing.with_consumer_span(msg.topic, Map.get(msg, :headers, []), fn ->
       Logger.debug("Received NATS message on subject: #{msg.topic}")
 
-      case BotArmyCore.NATS.Decoder.decode(msg.body) do
-        {:ok, decoded_message} ->
-          route_message(decoded_message)
+      if msg.topic == "gossip.poll.broadcast" do
+        case Jason.decode(msg.body) do
+          {:ok, decoded} -> BotArmyLearning.GossipPollVoter.handle_poll_broadcast(decoded)
+          {:error, reason} -> Logger.warning("Failed to decode gossip poll: #{inspect(reason)}")
+        end
+      else
+        case BotArmyCore.NATS.Decoder.decode(msg.body) do
+          {:ok, decoded_message} ->
+            route_message(decoded_message)
 
-        {:error, reason} ->
-          Logger.warning("Failed to decode message from #{msg.topic}: #{inspect(reason)}")
+          {:error, reason} ->
+            Logger.warning("Failed to decode message from #{msg.topic}: #{inspect(reason)}")
+        end
       end
     end)
 
@@ -151,6 +164,7 @@ defmodule BotArmyLearning.NATS.Consumer do
   def handle_info(:registry_heartbeat, state) do
     if length(state.subscriptions) > 0 do
       BotArmyRuntime.Registry.register("learning", @subjects, @version)
+      BotArmyLearning.GossipPollVoter.maybe_vote_on_heartbeat()
       Process.send_after(self(), :registry_heartbeat, @registry_heartbeat_ms)
     end
 
