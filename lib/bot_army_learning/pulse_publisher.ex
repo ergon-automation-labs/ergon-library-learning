@@ -11,6 +11,8 @@ defmodule BotArmyLearning.PulsePublisher do
   use GenServer
   require Logger
 
+  @health_interval_ms 30 * 1000
+
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -19,6 +21,7 @@ defmodule BotArmyLearning.PulsePublisher do
   def init(_opts) do
     # Start the publish loop
     schedule_publish()
+    Process.send_after(self(), :publish_health, 2_000)
     {:ok, %{active_sessions: 0, cards_reviewed: 0, cards_generated: 0}}
   end
 
@@ -56,8 +59,30 @@ defmodule BotArmyLearning.PulsePublisher do
     {:noreply, %{active_sessions: 0, cards_reviewed: 0, cards_generated: 0}}
   end
 
+  @impl true
+  def handle_info(:publish_health, state) do
+    publish_system_health(state)
+    Process.send_after(self(), :publish_health, @health_interval_ms)
+    {:noreply, state}
+  end
+
   defp schedule_publish do
     Process.send_after(self(), :publish, 5 * 60 * 1000)
+  end
+
+  defp publish_system_health(metrics) do
+    health_signal =
+      if metrics.active_sessions > 0 or metrics.cards_reviewed > 0 do
+        "nominal"
+      else
+        "degraded"
+      end
+
+    BotArmyRuntime.SynapseHealth.publish(
+      source: "bot_army_learning",
+      service: "learning",
+      health_signal: health_signal
+    )
   end
 
   defp publish_pulse(metrics) do
