@@ -1,5 +1,6 @@
 defmodule BotArmyLearningTest do
   use ExUnit.Case
+  @moduletag :core
 
   alias BotArmyLearning.{OutcomeTracker, ThresholdAdapter, PromptOptimizer}
 

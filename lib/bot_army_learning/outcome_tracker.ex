@@ -44,6 +44,16 @@ defmodule BotArmyLearning.OutcomeTracker do
     GenServer.call(@name, {:stats, category})
   end
 
+  @doc """
+  Get recent outcomes for a category filtered by sub_key.
+
+  Used by dispatcher to track healing success rates per bot name.
+  Returns list of %{was_correct: bool, actual_result: string} maps, newest first, capped at limit.
+  """
+  def recent_outcomes(category, sub_key, limit) do
+    GenServer.call(@name, {:recent_outcomes, category, sub_key, limit})
+  end
+
   @doc "Reset all data (testing)."
   def reset do
     GenServer.cast(@name, :reset)
@@ -95,6 +105,19 @@ defmodule BotArmyLearning.OutcomeTracker do
     }
 
     {:reply, stats, state}
+  end
+
+  @impl true
+  def handle_call({:recent_outcomes, category, sub_key, limit}, _from, state) do
+    outcomes =
+      state.outcomes
+      |> Map.values()
+      |> Enum.filter(&(&1.category == category and String.contains?(to_string(&1.id), sub_key)))
+      |> Enum.sort_by(& &1.recorded_at, :desc)
+      |> Enum.take(limit)
+      |> Enum.map(&%{was_correct: &1.was_correct, actual_result: &1.actual_result})
+
+    {:reply, outcomes, state}
   end
 
   # ── Helpers ─────────────────────────────────────────────────
