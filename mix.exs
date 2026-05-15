@@ -4,9 +4,10 @@ defmodule BotArmyLearning.MixProject do
   def project do
     [
       app: :bot_army_learning,
-      version: "0.1.2",
+      version: "0.2.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
+      config_path: "config/config.exs",
       deps: deps()
     ]
   end

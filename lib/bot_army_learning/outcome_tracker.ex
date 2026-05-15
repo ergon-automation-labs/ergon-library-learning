@@ -63,12 +63,49 @@ defmodule BotArmyLearning.OutcomeTracker do
 
   @impl true
   def init(_opts) do
-    {:ok, %{outcomes: %{}}}
+    # Load recent outcomes (last 30 days) from DB into in-memory state
+    outcomes =
+      try do
+        load_recent_outcomes()
+      rescue
+        _ -> %{}
+      end
+
+    {:ok, %{outcomes: outcomes}}
+  end
+
+  defp load_recent_outcomes do
+    import Ecto.Query
+
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30 * 24 * 60 * 60)
+
+    BotArmyLearning.Repo.all(
+      from(o in "learning_outcomes",
+        where: o.recorded_at >= ^thirty_days_ago
+      )
+    )
+    |> Enum.map(fn row ->
+      {
+        {row.category, row.item_id},
+        %{
+          id: row.item_id,
+          category: row.category,
+          decision: row.decision,
+          actual_result: row.actual_result,
+          was_correct: row.was_correct,
+          recorded_at: row.recorded_at
+        }
+      }
+    end)
+    |> Map.new()
+  rescue
+    _ -> %{}
   end
 
   @impl true
   def handle_cast({:record, id, category, decision, actual_result}, state) do
     was_correct = correct?(decision, actual_result)
+    now = DateTime.utc_now()
 
     outcome = %{
       id: id,
@@ -76,8 +113,11 @@ defmodule BotArmyLearning.OutcomeTracker do
       decision: decision,
       actual_result: actual_result,
       was_correct: was_correct,
-      recorded_at: DateTime.utc_now()
+      recorded_at: now
     }
+
+    # Persist to DB asynchronously (fire and forget)
+    Task.start(fn -> persist_outcome(id, category, decision, actual_result, was_correct, now) end)
 
     new_state = put_in(state, [:outcomes, {category, id}], outcome)
     {:noreply, new_state}
@@ -86,6 +126,22 @@ defmodule BotArmyLearning.OutcomeTracker do
   @impl true
   def handle_cast(:reset, _state) do
     {:noreply, %{outcomes: %{}}}
+  end
+
+  defp persist_outcome(id, category, decision, actual_result, was_correct, recorded_at) do
+    try do
+      %BotArmyLearning.Schema.Outcome{
+        item_id: id,
+        category: category,
+        decision: decision,
+        actual_result: actual_result,
+        was_correct: was_correct,
+        recorded_at: recorded_at
+      }
+      |> BotArmyLearning.Repo.insert()
+    rescue
+      _ -> :ok
+    end
   end
 
   @impl true
@@ -110,14 +166,36 @@ defmodule BotArmyLearning.OutcomeTracker do
   @impl true
   def handle_call({:recent_outcomes, category, sub_key, limit}, _from, state) do
     outcomes =
-      state.outcomes
-      |> Map.values()
-      |> Enum.filter(&(&1.category == category and String.contains?(to_string(&1.id), sub_key)))
-      |> Enum.sort_by(& &1.recorded_at, :desc)
-      |> Enum.take(limit)
-      |> Enum.map(&%{was_correct: &1.was_correct, actual_result: &1.actual_result})
+      try do
+        query_recent_outcomes(category, sub_key, limit)
+      rescue
+        _ ->
+          state.outcomes
+          |> Map.values()
+          |> Enum.filter(
+            &(&1.category == category and String.contains?(to_string(&1.id), sub_key))
+          )
+          |> Enum.sort_by(& &1.recorded_at, :desc)
+          |> Enum.take(limit)
+          |> Enum.map(&%{was_correct: &1.was_correct, actual_result: &1.actual_result})
+      end
 
     {:reply, outcomes, state}
+  end
+
+  defp query_recent_outcomes(category, sub_key, limit) do
+    import Ecto.Query
+
+    BotArmyLearning.Repo.all(
+      from(o in "learning_outcomes",
+        where:
+          o.category == ^category and
+            fragment("? ILIKE ?", o.item_id, ^"%#{sub_key}%"),
+        order_by: [desc: o.recorded_at],
+        limit: ^limit,
+        select: %{was_correct: o.was_correct, actual_result: o.actual_result}
+      )
+    )
   end
 
   # ── Helpers ─────────────────────────────────────────────────

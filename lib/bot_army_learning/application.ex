@@ -16,9 +16,12 @@ defmodule BotArmyLearning.Application do
 
   @impl true
   def start(_type, _args) do
-    # Library application — no long-lived processes at the top level.
-    # Consumers start individual learning GenServers as needed.
-    children = []
+    # Start Repo so consumers can use OutcomeTracker + PromptOptimizer with persistence.
+    # Consumers still start individual learning GenServers in their own supervision trees.
+    children = [
+      BotArmyLearning.Repo
+    ]
+
     Supervisor.start_link(children, strategy: :one_for_one, name: BotArmyLearning.Supervisor)
   end
 end

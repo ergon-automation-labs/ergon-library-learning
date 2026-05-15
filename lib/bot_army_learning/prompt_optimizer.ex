@@ -67,7 +67,37 @@ defmodule BotArmyLearning.PromptOptimizer do
 
   @impl true
   def init(_opts) do
-    {:ok, %{variants: %{}}}
+    variants =
+      try do
+        load_all_variants()
+      rescue
+        _ -> %{}
+      end
+
+    {:ok, %{variants: variants}}
+  end
+
+  defp load_all_variants do
+    import Ecto.Query
+
+    BotArmyLearning.Repo.all(from(pv in "learning_prompt_variants", select: pv))
+    |> Enum.map(fn row ->
+      key = {row.task_type, row.prompt_text}
+
+      {
+        key,
+        %{
+          task_type: row.task_type,
+          prompt: row.prompt_text,
+          total_score: row.total_score,
+          uses: row.uses,
+          last_metadata: %{}
+        }
+      }
+    end)
+    |> Map.new()
+  rescue
+    _ -> %{}
   end
 
   @impl true
@@ -91,6 +121,11 @@ defmodule BotArmyLearning.PromptOptimizer do
         last_metadata: metadata
     }
 
+    # Persist to DB asynchronously (fire and forget)
+    Task.start(fn ->
+      persist_prompt_variant(task_type, prompt_text, updated.total_score, updated.uses)
+    end)
+
     new_state =
       state
       |> put_in([:variants, key], updated)
@@ -102,6 +137,29 @@ defmodule BotArmyLearning.PromptOptimizer do
   @impl true
   def handle_cast(:reset, _state) do
     {:noreply, %{variants: %{}}}
+  end
+
+  defp persist_prompt_variant(task_type, prompt_text, total_score, uses) do
+    try do
+      prompt_hash = :crypto.hash(:sha256, prompt_text) |> Base.encode16(case: :lower)
+
+      %BotArmyLearning.Schema.PromptVariant{
+        task_type: task_type,
+        prompt_hash: prompt_hash,
+        prompt_text: prompt_text,
+        total_score: total_score,
+        uses: uses,
+        last_updated_at: DateTime.utc_now()
+      }
+      |> BotArmyLearning.Repo.insert(
+        on_conflict: [
+          set: [total_score: total_score, uses: uses, last_updated_at: DateTime.utc_now()]
+        ],
+        conflict_target: [:task_type, :prompt_hash]
+      )
+    rescue
+      _ -> :ok
+    end
   end
 
   @impl true
