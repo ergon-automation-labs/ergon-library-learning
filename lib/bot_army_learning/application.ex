@@ -32,7 +32,7 @@ defmodule BotArmyLearning.Application do
 
   defp maybe_add_if_configured(children, module) do
     # Only add if the module is configured (not when loaded as a library by another bot)
-    case Application.get_env(:bot_army_learning, module) do
+    case Application.get_env(:bot_army_library_learning, module) do
       nil -> children
       _ -> [module | children]
     end
@@ -64,6 +64,6 @@ defmodule BotArmyLearning.Application do
 
   defp enabled?() do
     # Only start infrastructure if explicitly running as the learning bot
-    Application.get_env(:bot_army_learning, :enabled, false)
+    Application.get_env(:bot_army_library_learning, :enabled, false)
   end
 end
