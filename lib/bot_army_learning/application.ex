@@ -27,22 +27,43 @@ defmodule BotArmyLearning.Application do
   end
 
   defp maybe_add_repo(children) do
-    if @env == :test, do: children, else: [BotArmyLearning.Repo | children]
+    if @env == :test, do: children, else: maybe_add_if_configured(children, BotArmyLearning.Repo)
+  end
+
+  defp maybe_add_if_configured(children, module) do
+    # Only add if the module is configured (not when loaded as a library by another bot)
+    case Application.get_env(:bot_army_learning, module) do
+      nil -> children
+      _ -> [module | children]
+    end
   end
 
   defp maybe_add_card_store(children) do
-    if @env == :test, do: children, else: [{BotArmyLearning.CardStore, []} | children]
+    if @env == :test or not enabled?(),
+      do: children,
+      else: [{BotArmyLearning.CardStore, []} | children]
   end
 
   defp maybe_add_session_manager(children) do
-    if @env == :test, do: children, else: [{BotArmyLearning.SessionManager, []} | children]
+    if @env == :test or not enabled?(),
+      do: children,
+      else: [{BotArmyLearning.SessionManager, []} | children]
   end
 
   defp maybe_add_pulse_publisher(children) do
-    if @env == :test, do: children, else: [{BotArmyLearning.PulsePublisher, []} | children]
+    if @env == :test or not enabled?(),
+      do: children,
+      else: [{BotArmyLearning.PulsePublisher, []} | children]
   end
 
   defp maybe_add_consumer(children) do
-    if @env == :test, do: children, else: [{BotArmyLearning.NATS.Consumer, []} | children]
+    if @env == :test or not enabled?(),
+      do: children,
+      else: [{BotArmyLearning.NATS.Consumer, []} | children]
+  end
+
+  defp enabled?() do
+    # Only start infrastructure if explicitly running as the learning bot
+    Application.get_env(:bot_army_learning, :enabled, false)
   end
 end
