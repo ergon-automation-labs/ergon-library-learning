@@ -7,7 +7,7 @@ defmodule LearningBot.Release do
       /path/to/learning_bot/bin/learning_bot eval 'LearningBot.Release.migrate()'
   """
 
-  @app :bot_army_learning
+  @app :bot_army_library_learning
 
   def migrate do
     load_app()

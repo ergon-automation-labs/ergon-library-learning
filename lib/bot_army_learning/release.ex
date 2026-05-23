@@ -13,10 +13,10 @@ defmodule BotArmyLearning.Release do
   end
 
   defp repos do
-    Application.fetch_env!(:bot_army_learning, :ecto_repos)
+    Application.fetch_env!(:bot_army_library_learning, :ecto_repos)
   end
 
   defp load_app do
-    Application.load(:bot_army_learning)
+    Application.load(:bot_army_library_learning)
   end
 end
