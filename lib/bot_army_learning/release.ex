@@ -1,22 +1,18 @@
 defmodule BotArmyLearning.Release do
   @moduledoc """
   Release tasks for database migrations.
+
+  Migrations are run via the shared BotArmyRuntime.Ecto.MigrationRunner:
+
+      eval 'BotArmyLearning.Release.migrate()'
+
+  Called from Salt during bot deployment, before the bot starts.
   """
 
   def migrate do
-    load_app()
-
-    for repo <- repos() do
-      {:ok, _fun_return, _apps} =
-        Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
-    end
-  end
-
-  defp repos do
-    Application.fetch_env!(:bot_army_library_learning, :ecto_repos)
-  end
-
-  defp load_app do
-    Application.load(:bot_army_library_learning)
+    BotArmyRuntime.Ecto.MigrationRunner.run(
+      repo_module: BotArmyLearning.Repo,
+      app_module: :bot_army_library_learning
+    )
   end
 end
