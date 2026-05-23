@@ -27,15 +27,10 @@ defmodule BotArmyLearning.Application do
   end
 
   defp maybe_add_repo(children) do
-    if @env == :test, do: children, else: maybe_add_if_configured(children, BotArmyLearning.Repo)
-  end
-
-  defp maybe_add_if_configured(children, module) do
-    # Only add if the module is configured (not when loaded as a library by another bot)
-    case Application.get_env(:bot_army_library_learning, module) do
-      nil -> children
-      _ -> [module | children]
-    end
+    # Only add Repo when explicitly enabled (running as standalone bot, not as a library)
+    if @env == :test or not enabled?(),
+      do: children,
+      else: [BotArmyLearning.Repo | children]
   end
 
   defp maybe_add_card_store(children) do
