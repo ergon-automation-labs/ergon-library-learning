@@ -27,6 +27,11 @@ defmodule BotArmyLearning.OutcomeTracker do
     GenServer.start_link(__MODULE__, opts, name: name)
   end
 
+  @doc "Get the repo module from state (internal)."
+  def get_repo do
+    GenServer.call(@name, :get_repo)
+  end
+
   @doc """
   Record an outcome.
 
@@ -62,24 +67,25 @@ defmodule BotArmyLearning.OutcomeTracker do
   # ── GenServer Callbacks ─────────────────────────────────────
 
   @impl true
-  def init(_opts) do
+  def init(opts) do
+    repo = Keyword.get(opts, :repo, BotArmyLearning.Repo)
     # Load recent outcomes (last 30 days) from DB into in-memory state
     outcomes =
       try do
-        load_recent_outcomes()
+        load_recent_outcomes(repo)
       rescue
         _ -> %{}
       end
 
-    {:ok, %{outcomes: outcomes}}
+    {:ok, %{outcomes: outcomes, repo: repo}}
   end
 
-  defp load_recent_outcomes do
+  defp load_recent_outcomes(repo) do
     import Ecto.Query
 
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30 * 24 * 60 * 60)
 
-    BotArmyLearning.Repo.all(
+    repo.all(
       from(o in "learning_outcomes",
         where: o.recorded_at >= ^thirty_days_ago
       )
@@ -117,18 +123,22 @@ defmodule BotArmyLearning.OutcomeTracker do
     }
 
     # Persist to DB asynchronously (fire and forget)
-    Task.start(fn -> persist_outcome(id, category, decision, actual_result, was_correct, now) end)
+    repo = state.repo
+
+    Task.start(fn ->
+      persist_outcome(id, category, decision, actual_result, was_correct, now, repo)
+    end)
 
     new_state = put_in(state, [:outcomes, {category, id}], outcome)
     {:noreply, new_state}
   end
 
   @impl true
-  def handle_cast(:reset, _state) do
-    {:noreply, %{outcomes: %{}}}
+  def handle_cast(:reset, state) do
+    {:noreply, %{outcomes: %{}, repo: state.repo}}
   end
 
-  defp persist_outcome(id, category, decision, actual_result, was_correct, recorded_at) do
+  defp persist_outcome(id, category, decision, actual_result, was_correct, recorded_at, repo) do
     try do
       %BotArmyLearning.Schema.Outcome{
         item_id: id,
@@ -138,7 +148,7 @@ defmodule BotArmyLearning.OutcomeTracker do
         was_correct: was_correct,
         recorded_at: recorded_at
       }
-      |> BotArmyLearning.Repo.insert()
+      |> repo.insert()
     rescue
       _ -> :ok
     end
@@ -167,7 +177,7 @@ defmodule BotArmyLearning.OutcomeTracker do
   def handle_call({:recent_outcomes, category, sub_key, limit}, _from, state) do
     outcomes =
       try do
-        query_recent_outcomes(category, sub_key, limit)
+        query_recent_outcomes(category, sub_key, limit, state.repo)
       rescue
         _ ->
           state.outcomes
@@ -183,10 +193,15 @@ defmodule BotArmyLearning.OutcomeTracker do
     {:reply, outcomes, state}
   end
 
-  defp query_recent_outcomes(category, sub_key, limit) do
+  @impl true
+  def handle_call(:get_repo, _from, state) do
+    {:reply, state.repo, state}
+  end
+
+  defp query_recent_outcomes(category, sub_key, limit, repo) do
     import Ecto.Query
 
-    BotArmyLearning.Repo.all(
+    repo.all(
       from(o in "learning_outcomes",
         where:
           o.category == ^category and
