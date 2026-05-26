@@ -18,18 +18,26 @@ defmodule BotArmyLearning.OutcomeTracker do
   use GenServer
   require Logger
 
-  @name __MODULE__
+  @default_name __MODULE__
 
   # ── Client API ──────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, @name)
+    name =
+      cond do
+        Keyword.has_key?(opts, :name) -> Keyword.get(opts, :name)
+        Keyword.has_key?(opts, :repo) -> derive_name(opts[:repo])
+        true -> @default_name
+      end
+
     GenServer.start_link(__MODULE__, opts, name: name)
   end
 
+  defp derive_name(repo) when is_atom(repo), do: :"#{repo}_outcome_tracker"
+
   @doc "Get the repo module from state (internal)."
-  def get_repo do
-    GenServer.call(@name, :get_repo)
+  def get_repo(server \\ @default_name) do
+    GenServer.call(server, :get_repo)
   end
 
   @doc """
@@ -40,13 +48,13 @@ defmodule BotArmyLearning.OutcomeTracker do
   - `decision` — the decision that was made (e.g. "approved")
   - `actual_result` — what actually happened (e.g. "pass", "fail")
   """
-  def record(id, category, decision, actual_result) do
-    GenServer.cast(@name, {:record, id, category, decision, actual_result})
+  def record(id, category, decision, actual_result, server \\ @default_name) do
+    GenServer.cast(server, {:record, id, category, decision, actual_result})
   end
 
   @doc "Get accuracy stats for a category."
-  def stats(category) do
-    GenServer.call(@name, {:stats, category})
+  def stats(category, server \\ @default_name) do
+    GenServer.call(server, {:stats, category})
   end
 
   @doc """
@@ -55,13 +63,13 @@ defmodule BotArmyLearning.OutcomeTracker do
   Used by dispatcher to track healing success rates per bot name.
   Returns list of %{was_correct: bool, actual_result: string} maps, newest first, capped at limit.
   """
-  def recent_outcomes(category, sub_key, limit) do
-    GenServer.call(@name, {:recent_outcomes, category, sub_key, limit})
+  def recent_outcomes(category, sub_key, limit, server \\ @default_name) do
+    GenServer.call(server, {:recent_outcomes, category, sub_key, limit})
   end
 
   @doc "Reset all data (testing)."
-  def reset do
-    GenServer.cast(@name, :reset)
+  def reset(server \\ @default_name) do
+    GenServer.cast(server, :reset)
   end
 
   # ── GenServer Callbacks ─────────────────────────────────────
