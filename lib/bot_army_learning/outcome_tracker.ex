@@ -77,6 +77,7 @@ defmodule BotArmyLearning.OutcomeTracker do
   @impl true
   def init(opts) do
     repo = Keyword.get(opts, :repo, BotArmyLearning.Repo)
+    correctness_fn = Keyword.get(opts, :correctness_fn, &correct?/2)
     # Load recent outcomes (last 30 days) from DB into in-memory state
     outcomes =
       try do
@@ -85,7 +86,7 @@ defmodule BotArmyLearning.OutcomeTracker do
         _ -> %{}
       end
 
-    {:ok, %{outcomes: outcomes, repo: repo}}
+    {:ok, %{outcomes: outcomes, repo: repo, correctness_fn: correctness_fn}}
   end
 
   defp load_recent_outcomes(repo) do
@@ -118,7 +119,7 @@ defmodule BotArmyLearning.OutcomeTracker do
 
   @impl true
   def handle_cast({:record, id, category, decision, actual_result}, state) do
-    was_correct = correct?(decision, actual_result)
+    was_correct = state.correctness_fn.(decision, actual_result)
     now = DateTime.utc_now()
 
     outcome = %{
@@ -143,7 +144,7 @@ defmodule BotArmyLearning.OutcomeTracker do
 
   @impl true
   def handle_cast(:reset, state) do
-    {:noreply, %{outcomes: %{}, repo: state.repo}}
+    {:noreply, %{outcomes: %{}, repo: state.repo, correctness_fn: state.correctness_fn}}
   end
 
   defp persist_outcome(id, category, decision, actual_result, was_correct, recorded_at, repo) do
