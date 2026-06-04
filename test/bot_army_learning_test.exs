@@ -34,6 +34,45 @@ defmodule BotArmyLearningTest do
       assert stats.total == 4
       assert stats.correct == 2
     end
+
+    test "uses custom correctness_fn when provided" do
+      custom_fn = fn decision, result ->
+        # Custom domain: github PRs
+        # "approved" + "merged" = correct (not "pass")
+        # "requested_changes" + "fixed" = correct
+        case {decision, result} do
+          {"approved", "merged"} -> true
+          {"approved", "rejected"} -> false
+          {"requested_changes", "fixed"} -> true
+          {"requested_changes", "abandoned"} -> true
+          _ -> false
+        end
+      end
+
+      {:ok, pid} =
+        OutcomeTracker.start_link(
+          name: :custom_tracker,
+          correctness_fn: custom_fn
+        )
+
+      OutcomeTracker.record("pr1", "github.pr_review", "approved", "merged", :custom_tracker)
+      OutcomeTracker.record("pr2", "github.pr_review", "approved", "rejected", :custom_tracker)
+
+      OutcomeTracker.record(
+        "pr3",
+        "github.pr_review",
+        "requested_changes",
+        "fixed",
+        :custom_tracker
+      )
+
+      stats = OutcomeTracker.stats("github.pr_review", :custom_tracker)
+      assert stats.total == 3
+      assert stats.correct == 2
+      assert stats.accuracy == 2.0 / 3.0
+
+      GenServer.stop(pid)
+    end
   end
 
   describe "ThresholdAdapter" do
