@@ -1,5 +1,15 @@
 import Config
 
+# Logger with correlation_id support
+config :logger,
+  level: :info,
+  backends: [:console],
+  default_formatter: {BotArmyRuntime.LoggerFormatter, []}
+
+config :logger, :console,
+  format: {BotArmyRuntime.LoggerFormatter, []},
+  metadata: [:correlation_id]
+
 # Load .env file for local development/testing
 if File.exists?(".env") do
   File.stream!(".env")
@@ -19,3 +29,4 @@ config :bot_army_library_learning, ecto_repos: [BotArmyLearning.Repo]
 
 # Database configuration is now in config/runtime.exs
 # This allows environment variables to be read at application startup, not at compile time
+
