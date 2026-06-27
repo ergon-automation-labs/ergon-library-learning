@@ -1,5 +1,14 @@
 import Config
 
+# Logger with correlation_id support
+config :logger,
+  level: :info,
+  backends: [:console]
+
+config :logger, :console,
+  format: "[$time] [$level] $message\n",
+  metadata: [:correlation_id]
+
 # Load .env file for local development/testing
 if File.exists?(".env") do
   File.stream!(".env")
